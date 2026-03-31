@@ -1,0 +1,10 @@
+crewai[tools]
+google-genai
+playwright
+pyperclip
+pillow
+piexif
+sajupy
+python-dotenv
+requests
+pyyaml

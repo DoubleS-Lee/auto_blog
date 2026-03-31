@@ -1,0 +1,125 @@
+keyword_research_task:
+  description: >
+    '{topic}' 주제에 대해 네이버 SEO 키워드 전략을 수립하라.
+
+    [수행 순서]
+    1. NaverDataLabTool로 관련 키워드 3~5개의 최근 트렌드 검색량 분석
+    2. NaverSearchTool로 상위 블로그 10개 제목/내용 패턴 분석
+    3. 메인 키워드 1개, 서브 키워드 2~3개 선정
+
+    [출력 형식]
+    메인 키워드: (키워드)
+    서브 키워드: (키워드1), (키워드2), (키워드3)
+    경쟁 글 분석: (상위 글들의 패턴 요약)
+    추천 제목 방향: (클릭을 유도하는 제목 방향 2~3가지)
+  expected_output: "메인 키워드, 서브 키워드, 경쟁 글 패턴, 추천 제목 방향이 포함된 키워드 전략 보고서"
+  agent: seo_analyst
+
+content_writing_task:
+  description: >
+    '{topic}' 주제의 사주 관련 블로그 글을 작성하라.
+
+    [필수 규칙]
+    - 절대로 AI가 쓴 것처럼 느껴지면 안 됨
+    - 반드시 경험 기반 서술 포함: "사주를 공부하다 보면...",
+      "이 개념을 처음 접했을 때...", "많은 분들이 헷갈려 하시는 부분인데..." 등
+    - 개인 운세 풀이가 아닌 사주 지식/개념/원리 정보 전달 위주
+    - 명리학 개념 데이터(천간/지지/신살 등)가 필요하면 SajuDataTool 사용
+      (LLM이 직접 계산하거나 단정짓지 말 것)
+    - 분량: 1000~1400자
+
+    [글 구조 - 아래 형식을 반드시 따를 것]
+    글은 다음 패턴을 반복하여 4~6개 섹션으로 구성한다:
+
+      [IMAGE_N]
+      > 소제목 (짧고 흥미로운 문장)
+
+      본문 단락. 짧게 끊어 읽기 쉽게. **강조할 단어**는 양쪽에 별표 두 개로 감싼다.
+      한 단락은 2~4줄 이내.
+
+      (빈 줄로 단락 구분)
+
+    - 첫 번째 [IMAGE_1]은 글 맨 앞에 (서론 텍스트 전에) 배치
+    - 이후 각 섹션은 [IMAGE_N] → > 소제목 → 본문 순서로 배치
+    - #, ##, ### 헤딩 기호 절대 사용 금지
+    - 소제목은 반드시 '> ' 형식만 사용
+    - 강조는 반드시 **텍스트** 형식만 사용 (다른 마크다운 기호 금지)
+
+    [톤앤매너 가이드 - 이 스타일을 따를 것]
+    {tone_guide}
+  expected_output: >
+    [IMAGE_1]
+    > 소제목
+    본문...
+    [IMAGE_2]
+    > 소제목
+    본문...
+    형태로 구성된 블로그 글 (> 소제목과 **강조** 외 마크다운 기호 없음)
+  agent: content_writer
+  context:
+    - keyword_research_task
+
+image_generation_task:
+  description: >
+    블로그 글의 [IMAGE_N] 마커 개수에 맞춰 사주 테마 이미지를 생성하라.
+
+    [처리 순서 - 각 이미지마다 반복]
+    1. GeminiImageGeneratorTool로 Imagen 4 이미지 생성
+       - 프롬프트: 글 주제와 어울리는 분위기, 영어로 작성
+       - 텍스트/문자/한자/숫자가 절대 포함되지 않도록 명시
+    2. ExifInjectorTool로 EXIF 주입 + SEO 파일명 변경
+       - main_keyword: 메인 키워드
+       - sub_keyword: 서브 키워드
+       - image_index: 이미지 번호
+
+    이미지 스타일: 글 주제와 어울리는 분위기면 모두 가능 (스타일 제한 없음)
+  expected_output: >
+    각 이미지의 최종 저장 경로 목록 (SEO 파일명 적용된 .jpg 경로)
+    예시:
+    IMAGE_1: output/images/갑목일주_갑목특성_1.jpg
+    IMAGE_2: output/images/갑목일주_갑목특성_2.jpg
+  agent: image_creator
+  context:
+    - content_writing_task
+    - keyword_research_task
+
+seo_optimization_task:
+  description: >
+    content_writer가 작성한 글을 네이버 SEO에 맞게 최종 완성하라.
+
+    [처리 순서]
+    1. 불필요한 마크다운 기호 제거: #, ##, ###, ___, -, ``` 등 삭제
+       - 단, 아래 세 가지는 반드시 원형 그대로 보존:
+         ① [IMAGE_N] 마커 (절대 삭제/변경 금지)
+         ② > 소제목 형식 (인용구 블록용, 보존)
+         ③ **강조 텍스트** 형식 (굵게 처리용, 보존)
+    2. 메인 키워드를 제목, 첫 문단, 중간, 마지막 문단에 자연스럽게 배치
+    3. 블로그 제목 작성 (25자 이내, 메인 키워드 포함, 클릭 유도형)
+    4. 태그 15개 선정 (쉼표 구분, 메인/서브/롱테일 키워드 혼합)
+  expected_output: >
+    아래 형식으로 출력:
+    TITLE: (블로그 제목)
+    CONTENT:
+    ([IMAGE_N], > 소제목, **강조** 보존된 본문 전체)
+    TAGS: (태그1,태그2,...,태그15)
+  agent: seo_optimizer
+  context:
+    - content_writing_task
+    - keyword_research_task
+
+blog_publishing_task:
+  description: >
+    최적화된 블로그 글을 네이버 스마트에디터 ONE에 발행하라.
+
+    NaverSmartEditorTool을 호출할 때 blocks 파라미터는
+    main.py에서 파싱된 블록 배열을 그대로 전달한다.
+
+    [입력 파라미터]
+    - title: seo_optimization_task의 TITLE 값
+    - blocks: {blocks}
+    - tags: seo_optimization_task의 TAGS 값
+  expected_output: "발행 완료 메시지 (게시 완료: 제목)"
+  agent: blog_publisher
+  context:
+    - seo_optimization_task
+    - image_generation_task
