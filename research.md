@@ -136,10 +136,37 @@ with page.expect_file_chooser() as fc_info:
 ### EXIF 정보 주입 (piexif + Pillow)
 
 - 가짜 촬영 정보를 주입하여 직접 찍은 사진처럼 위장
-- 주입 항목: Make(제조사), Model(기기명), DateTime, DateTimeOriginal
-- 랜덤 선택 카메라: Samsung SM-S928B, Apple iPhone 15 Pro
-- 촬영 날짜: 현재 기준 1~30일 전 랜덤
 - PNG → JPEG 변환 필수 (EXIF는 JPEG만 지원)
+
+**주입 항목 전체:**
+
+| 카테고리 | 항목 | 내용 |
+|---------|------|------|
+| 카메라 정보 | Make, Model | 제조사 + 기기명 |
+| 카메라 정보 | LensModel | 렌즈 모델명 |
+| 카메라 정보 | FirmwareVersion | 펌웨어 버전 |
+| 카메라 정보 | Software | 카메라 앱 이름 |
+| 촬영 설정 | FNumber | 조리개 값 (F1.6~F1.78) |
+| 촬영 설정 | ExposureTime | 셔터스피드 (1/60~1/1000) |
+| 촬영 설정 | ISOSpeedRatings | ISO 감도 (카메라별 범위 랜덤) |
+| 촬영 설정 | ExposureBiasValue | 노출 보정 (0 EV) |
+| 촬영 설정 | Flash | 플래시 미사용 (0) |
+| 사진 속성 | FocalLength | 초점거리 |
+| 사진 속성 | WhiteBalance | 자동 화이트밸런스 (0) |
+| 사진 속성 | MeteringMode | 중앙 중점 측광 (2) |
+| 사진 속성 | ColorSpace | sRGB (1) |
+| 사진 속성 | XResolution, YResolution | 72dpi |
+| 시간/장소 | DateTime, DateTimeOriginal, DateTimeDigitized | 현재 기준 1~30일 전 랜덤 |
+| 시간/장소 | GPS (위도/경도/고도) | 서울 근방 랜덤 (37.5°N, 127.0°E ±0.05°) |
+| 편집 이력 | Software | 카메라 앱명으로 마지막 수정 프로그램 위장 |
+
+**랜덤 카메라 프로파일 (3종):**
+
+| 기기 | 렌즈 | F값 | ISO 범위 |
+|------|------|-----|---------|
+| Samsung SM-S928B (갤럭시 S24 Ultra) | Samsung 23mm F1.7 | F1.7 | 50~3200 |
+| Apple iPhone 15 Pro | back triple camera 6.765mm f/1.78 | F1.78 | 32~2500 |
+| Apple iPhone 16 | back dual wide camera 4.28mm f/1.6 | F1.6 | 32~2000 |
 
 ### SEO 파일명
 

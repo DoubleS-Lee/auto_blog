@@ -95,9 +95,16 @@ class BlogAutomationCrew:
 
     @crew
     def crew(self) -> Crew:
+        # blog_publishing_task는 main.py에서 직접 실행 → 크루에서 제외
+        tasks = [
+            self.keyword_research_task(),
+            self.content_writing_task(),
+            self.image_generation_task(),
+            self.seo_optimization_task(),
+        ]
         return Crew(
             agents=self.agents,
-            tasks=self.tasks,
+            tasks=tasks,
             process=Process.sequential,
             verbose=True,
         )

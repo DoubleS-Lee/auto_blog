@@ -128,6 +128,9 @@ if __name__ == "__main__":
         print("주제를 입력해야 합니다.")
         exit(1)
 
+    answer = input("최종 발행하시겠습니까? (y=발행 / n=입력만 하고 확인) [y/n]: ").strip().lower()
+    dry_run = answer != "y"
+
     tone_guide = load_tone_guide()
     print(f"\n[✓] 톤앤매너 가이드 로드 완료 ({len(tone_guide)}자)")
     print(f"[✓] 주제: {topic}")
@@ -173,9 +176,10 @@ if __name__ == "__main__":
     # 5단계: 블로그 발행
     from tools import NaverSmartEditorTool
     publisher = NaverSmartEditorTool()
-    publish_result = publisher.run({
-        "title": title,
-        "blocks": blocks,
-        "tags": tags,
-    })
+    publish_result = publisher._run(
+        title=title,
+        blocks=blocks,
+        tags=tags,
+        dry_run=dry_run,
+    )
     print(f"\n[✓] {publish_result}")

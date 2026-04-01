@@ -19,6 +19,7 @@ class SmartEditorInput(BaseModel):
         )
     )
     tags: str = Field(..., description="태그 목록 (쉼표 구분, 최대 30개)")
+    dry_run: bool = Field(default=False, description="True면 글 입력까지만 하고 발행하지 않음 (브라우저 열린 상태 유지)")
 
 
 class NaverSmartEditorTool(BaseTool):
@@ -27,10 +28,24 @@ class NaverSmartEditorTool(BaseTool):
     args_schema: type = SmartEditorInput
 
     def _add_paragraph_breaks(self, text: str) -> str:
-        """마침표 뒤에 줄바꿈 1개 추가 (가독성)."""
+        """마침표 뒤에 줄바꿈 추가."""
         text = re.sub(r'\.(\s+)', '.\n', text)
         text = re.sub(r'\.$', '.\n', text, flags=re.MULTILINE)
         return text
+
+    def _set_center_align(self, page):
+        """가운데 정렬: 정렬 드롭다운 열기 → center 옵션 클릭."""
+        page.evaluate("""() => {
+            const toggle = document.querySelector('[data-name="align-drop-down-with-justify"]:not([data-value])');
+            if (toggle) toggle.click();
+        }""")
+        page.wait_for_timeout(300)
+        option = page.locator('[data-name="align-drop-down-with-justify"][data-value="center"]')
+        if option.count() > 0:
+            option.first.click()
+        else:
+            page.keyboard.press("Escape")
+        page.wait_for_timeout(200)
 
     def _set_font_size(self, page, size: int):
         """폰트 크기 설정: 토글 클릭 → 대기 → fs{size} 옵션 클릭."""
@@ -91,7 +106,7 @@ class NaverSmartEditorTool(BaseTool):
         # 2. 폰트 크기 19 먼저 설정 (포커스 이동 무관)
         self._set_font_size(page, 19)
 
-        # 3. 인용구 첫 번째 contenteditable(텍스트 영역) 직접 클릭 → 포커스 확보
+        # 3. 인용구 첫 번째 contenteditable 포커스 확보
         page.evaluate("""() => {
             const components = document.querySelectorAll('.se-component-quotation');
             if (!components.length) return;
@@ -176,7 +191,7 @@ class NaverSmartEditorTool(BaseTool):
             if (candidates.length > 0) candidates[candidates.length - 1].click();
         }""")
 
-    def _run(self, title: str, blocks: list, tags: str) -> str:
+    def _run(self, title: str, blocks: list, tags: str, dry_run: bool = False) -> str:
         try:
             from playwright.sync_api import sync_playwright
         except ImportError:
@@ -207,7 +222,7 @@ class NaverSmartEditorTool(BaseTool):
             page.keyboard.press("Enter")
             page.wait_for_timeout(300)
 
-            # ── 본문 기본 폰트 크기 16 설정 ──
+            # ── 본문 기본 폰트 크기 16 ──
             self._set_font_size(page, 16)
 
             # ── 본문 블록 순차 입력 ──
@@ -245,6 +260,11 @@ class NaverSmartEditorTool(BaseTool):
                     page.keyboard.press("Enter")
                     page.wait_for_timeout(300)
 
+            # ── 전체 선택 후 가운데 정렬 ──
+            page.keyboard.press("Control+a")
+            page.wait_for_timeout(300)
+            self._set_center_align(page)
+
             # ── 발행 패널 열기 ──
             self._click_publish_button(page)
             page.wait_for_timeout(2000)
@@ -257,6 +277,13 @@ class NaverSmartEditorTool(BaseTool):
                 page.keyboard.type(tag)
                 page.keyboard.press("Enter")
                 page.wait_for_timeout(200)
+
+            if dry_run:
+                print("\n[DRY RUN] 태그 입력까지 완료. 최종 발행 버튼은 누르지 않습니다.")
+                print("[DRY RUN] 브라우저에서 직접 확인 후 닫아 주세요.")
+                input("[DRY RUN] Enter 키를 누르면 프로그램이 종료됩니다...")
+                browser.close()
+                return f"[DRY RUN] 발행 생략 완료: {title}"
 
             # ── 최종 발행 (패널 안 '✓ 발행' 버튼) ──
             self._click_panel_confirm(page)
