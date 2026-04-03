@@ -1,11 +1,11 @@
 import os
 import re
-import json
 import pyperclip
 from crewai.tools import BaseTool
 from pydantic import BaseModel, Field
 
-COOKIE_PATH = "session/naver_cookies.json"
+# 쿠키 JSON 대신 브라우저 프로파일 디렉터리를 영구 저장
+PROFILE_DIR = os.path.abspath("session/chrome_profile")
 
 
 class SmartEditorInput(BaseModel):
@@ -143,22 +143,30 @@ class NaverSmartEditorTool(BaseTool):
         self._set_font_size(page, 16)
         page.wait_for_timeout(300)
 
-    def _load_or_login(self, page, context):
-        if os.path.exists(COOKIE_PATH):
-            with open(COOKIE_PATH, encoding="utf-8") as f:
-                cookies = json.load(f)
-            context.add_cookies(cookies)
-            page.goto("https://www.naver.com")
-            page.wait_for_timeout(1000)
-        else:
-            page.goto("https://nid.naver.com/nidlogin.login")
-            print("\n[!] 네이버 로그인 후 Enter 키를 누르세요...")
-            input()
-            cookies = context.cookies()
-            os.makedirs("session", exist_ok=True)
-            with open(COOKIE_PATH, "w", encoding="utf-8") as f:
-                json.dump(cookies, f, ensure_ascii=False, indent=2)
-            print("[✓] 쿠키 저장 완료")
+    def _ensure_login(self, page, blog_id: str):
+        """
+        블로그 글쓰기 페이지로 바로 이동 → URL이 로그인 페이지로 리다이렉트되면
+        로그인 완료까지 대기 후 글쓰기 페이지로 재이동.
+        셀렉터에 의존하지 않으므로 네이버 UI 변경에 영향받지 않음.
+        """
+        postwrite_url = f"https://blog.naver.com/{blog_id}/postwrite"
+        page.goto(postwrite_url)
+        page.wait_for_load_state("domcontentloaded")
+        page.wait_for_timeout(2000)
+
+        # 로그인 페이지로 리다이렉트됐는지 확인
+        if "nidlogin" in page.url or "login" in page.url:
+            print("\n[!] 로그인이 필요합니다. 브라우저에서 네이버 로그인을 해주세요.")
+            # 로그인 완료 = 네이버 메인 또는 블로그로 이동될 때까지 대기
+            page.wait_for_url(
+                lambda url: "naver.com" in url and "login" not in url,
+                timeout=300_000,
+            )
+            page.wait_for_timeout(1500)
+            print("[✓] 로그인 완료 — 글쓰기 페이지로 이동합니다.")
+            page.goto(postwrite_url)
+            page.wait_for_load_state("domcontentloaded")
+            page.wait_for_timeout(2000)
 
     def _close_help_panel(self, page):
         """도움말 패널이 열려 있으면 닫는다."""
@@ -202,15 +210,19 @@ class NaverSmartEditorTool(BaseTool):
             return "오류: NAVER_BLOG_ID 환경변수가 없습니다."
 
         with sync_playwright() as p:
-            browser = p.chromium.launch(headless=False)
-            context = browser.new_context()
+            os.makedirs(PROFILE_DIR, exist_ok=True)
+            context = p.chromium.launch_persistent_context(
+                user_data_dir=PROFILE_DIR,
+                headless=False,
+                args=["--disable-blink-features=AutomationControlled"],
+            )
             page = context.new_page()
 
-            self._load_or_login(page, context)
+            self._ensure_login(page, blog_id)
 
-            page.goto(f"https://blog.naver.com/{blog_id}/postwrite")
+            # _ensure_login이 이미 postwrite로 이동했으므로 추가 대기만
             page.wait_for_load_state("networkidle")
-            page.wait_for_timeout(3000)
+            page.wait_for_timeout(2000)
 
             # ── 도움말 패널 닫기 (가장 먼저) ──
             self._close_help_panel(page)
@@ -282,13 +294,13 @@ class NaverSmartEditorTool(BaseTool):
                 print("\n[DRY RUN] 태그 입력까지 완료. 최종 발행 버튼은 누르지 않습니다.")
                 print("[DRY RUN] 브라우저에서 직접 확인 후 닫아 주세요.")
                 input("[DRY RUN] Enter 키를 누르면 프로그램이 종료됩니다...")
-                browser.close()
+                context.close()
                 return f"[DRY RUN] 발행 생략 완료: {title}"
 
             # ── 최종 발행 (패널 안 '✓ 발행' 버튼) ──
             self._click_panel_confirm(page)
             page.wait_for_timeout(3000)
 
-            browser.close()
+            context.close()
 
         return f"게시 완료: {title}"

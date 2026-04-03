@@ -3,9 +3,10 @@ from crewai.project import CrewBase, agent, crew, task
 from tools import (
     NaverDataLabTool,
     NaverSearchTool,
-    SajuDataTool,
+    NaverShoppingInsightTool,
+    NaverBlogCompetitionTool,
+    TitleSEOCheckerTool,
     GeminiImageGeneratorTool,
-    ExifInjectorTool,
     NaverSmartEditorTool,
 )
 
@@ -23,7 +24,7 @@ class BlogAutomationCrew:
         return Agent(
             config=self.agents_config["seo_analyst"],
             llm=self._llm(),
-            tools=[NaverDataLabTool(), NaverSearchTool()],
+            tools=[NaverShoppingInsightTool(), NaverDataLabTool(), NaverSearchTool(), NaverBlogCompetitionTool()],
             allow_delegation=False,
             cache=False,
             verbose=True,
@@ -34,7 +35,7 @@ class BlogAutomationCrew:
         return Agent(
             config=self.agents_config["content_writer"],
             llm=self._llm(),
-            tools=[SajuDataTool()],
+            tools=[],
             allow_delegation=False,
             cache=False,
             verbose=True,
@@ -45,7 +46,7 @@ class BlogAutomationCrew:
         return Agent(
             config=self.agents_config["image_creator"],
             llm=self._llm(),
-            tools=[GeminiImageGeneratorTool(), ExifInjectorTool()],
+            tools=[GeminiImageGeneratorTool()],
             allow_delegation=False,
             cache=False,
             verbose=True,
@@ -56,7 +57,7 @@ class BlogAutomationCrew:
         return Agent(
             config=self.agents_config["seo_optimizer"],
             llm=self._llm(),
-            tools=[],
+            tools=[TitleSEOCheckerTool()],
             allow_delegation=False,
             cache=False,
             verbose=True,
@@ -94,17 +95,44 @@ class BlogAutomationCrew:
         return Task(config=self.tasks_config["blog_publishing_task"])
 
     @crew
+    def seo_crew(self) -> Crew:
+        """1단계: SEO 분석 + 추천 주제 생성만 실행"""
+        return Crew(
+            agents=[self.seo_analyst()],
+            tasks=[self.keyword_research_task()],
+            process=Process.sequential,
+            verbose=True,
+        )
+
+    @crew
+    def content_crew(self) -> Crew:
+        """2단계: 글 작성 → 이미지 생성 → SEO 최적화"""
+        return Crew(
+            agents=[
+                self.content_writer(),
+                self.image_creator(),
+                self.seo_optimizer(),
+            ],
+            tasks=[
+                self.content_writing_task(),
+                self.image_generation_task(),
+                self.seo_optimization_task(),
+            ],
+            process=Process.sequential,
+            verbose=True,
+        )
+
+    @crew
     def crew(self) -> Crew:
-        # blog_publishing_task는 main.py에서 직접 실행 → 크루에서 제외
-        tasks = [
-            self.keyword_research_task(),
-            self.content_writing_task(),
-            self.image_generation_task(),
-            self.seo_optimization_task(),
-        ]
+        """하위 호환용 전체 크루 (1~4단계)"""
         return Crew(
             agents=self.agents,
-            tasks=tasks,
+            tasks=[
+                self.keyword_research_task(),
+                self.content_writing_task(),
+                self.image_generation_task(),
+                self.seo_optimization_task(),
+            ],
             process=Process.sequential,
             verbose=True,
         )

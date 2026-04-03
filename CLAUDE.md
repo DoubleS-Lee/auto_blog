@@ -4,9 +4,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## 프로젝트 개요
 
-사주 관련 정보 블로그(개인 운세 풀이 X, 개념/지식/원리 정보 O)를 자동으로 생성하고 네이버 블로그에 발행하는 시스템.
-주제를 입력하면 5개 CrewAI 에이전트가 순차적으로 실행된다:
-`seo_analyst → content_writer → image_creator → seo_optimizer → blog_publisher`
+**블로그 주제: '세상 모든 것에는 이유가 있다'**
+수학을 배우는 이유, 강아지가 짖는 이유, 미분이 존재하는 이유 등 — 세상의 모든 현상과 개념에 대해 "왜 그럴까?"에 답하는 교육/정보 블로그.
+
+네이버 블로그에 콘텐츠를 자동 생성·발행하는 시스템.
+실행하면 SEO 에이전트가 인기 키워드를 추천하고, 사용자가 주제를 최종 선택한 뒤 5개 CrewAI 에이전트가 순차 실행된다:
+`seo_analyst → (GUI 주제 선택) → content_writer → image_creator → seo_optimizer → blog_publisher`
 
 ## 실행 명령어
 
@@ -35,15 +38,39 @@ playwright install chromium
 
 ## 아키텍처
 
-### 에이전트 파이프라인 (Sequential)
+### 실행 흐름 (2단계 실행)
+
+```
+python main.py
+  ↓
+[1단계] seo_analyst 실행
+  → 네이버 DataLab + 검색 API로 인기 키워드 5~10개 추천 목록 생성
+  ↓
+[GUI 주제 선택 팝업]
+  → tkinter Listbox로 추천 키워드 목록 표시
+  → 사용자가 클릭 선택 또는 직접 입력
+  → 최종 주제 확정
+  ↓
+[2단계] content_writer → image_creator → seo_optimizer → blog_publisher 순차 실행
+```
+
+### 에이전트 파이프라인
 
 | 에이전트 | 파일 | 핵심 동작 |
 |---------|------|---------|
-| `seo_analyst` | `config/agents.yaml` | 네이버 DataLab + 검색 API로 키워드 트렌드/경쟁 글 분석 |
+| `seo_analyst` | `config/agents.yaml` | 네이버 DataLab + 검색 API로 키워드 트렌드/경쟁 글 분석 → 추천 주제 5~10개 출력 |
 | `content_writer` | `config/agents.yaml` | tone_guide.yaml 기반 평문 글 작성, `[IMAGE_N]` 마커 삽입 |
 | `image_creator` | `config/agents.yaml` | Imagen 4 생성 → EXIF 주입 → SEO 파일명 변경 |
 | `seo_optimizer` | `config/agents.yaml` | 마크다운 기호 완전 제거, 키워드 배치, 태그 15개 선정 |
 | `blog_publisher` | `config/agents.yaml` | Playwright로 스마트에디터 ONE 블록 순차 입력 후 발행 |
+
+### GUI 주제 선택 + 작성 방향 입력 (`show_topic_selector()`)
+
+`main.py`의 `show_topic_selector(topics)` 함수가 seo_analyst 결과를 받아 tkinter 팝업을 띄운다:
+- 추천 키워드 Listbox (클릭 선택)
+- 직접 입력 텍스트 박스 (자유 입력)
+- **작성 강조 사항** 텍스트 입력 박스 — 사용자가 content_writer에게 전달할 메모 (예: "초등학생도 이해할 수 있게", "수식 없이 비유로만 설명")
+- 확인 버튼 → `(주제, 강조사항)` 튜플 반환
 
 ### 블록 분리 입력 방식 (핵심 설계)
 
@@ -57,6 +84,7 @@ playwright install chromium
 - HTML을 클립보드에 붙여넣기 (`<h2>` 등 태그가 plain text로 노출됨)
 - XML-RPC로 발행 (구버전 에디터 2.0 강제 → DIA+ 감점)
 - `expect_file_chooser()` 바깥에서 이미지 버튼 클릭 (이중 클릭 → 파일탐색기 오류)
+- LLM에게 수식·공식·데이터 직접 계산 요청 (Hallucination 위험 — 외부 툴/검증된 출처 사용)
 
 ### 콘텐츠 출력 형식
 
@@ -68,20 +96,11 @@ playwright install chromium
 
 `tone_samples/*.txt`에 사용자 샘플 글을 넣고 `analyze_tone.py`를 실행하면 `tone_guide.yaml`(100~150 토큰)이 생성된다.
 매 실행 시 샘플 전문 대신 이 YAML만 프롬프트에 주입한다 (토큰 약 95% 절약).
-
-### 사주 데이터 계산
-
-`tools/saju_data_tool.py`에서 `sajupy` 라이브러리 사용:
-```python
-from sajupy import calculate_saju
-result = calculate_saju(year=..., month=..., day=..., hour=..., minute=...,
-                        city="Seoul", use_solar_time=True)
-```
-`city="Seoul"`, `use_solar_time=True`로 서울 진태양시 자동 보정. LLM이 직접 명리학 데이터를 계산하지 않도록 이 툴을 경유한다.
+글쓰기 방향: "강의하듯 설명하되 친근하게", "왜? 라는 질문에서 시작", 논리적 근거 + 감성적 서술.
 
 ### 이미지 생성
 
 `tools/gemini_image_tool.py`: Imagen 4 모델 ID = `imagen-4.0-generate-001`, retry 3회.
 프롬프트에 항상 추가: `"Do not include any letters, characters, hanja, korean text, numbers, words, or writing of any kind in the image."`
 
-`tools/exif_injector_tool.py`: PNG → JPEG 변환 + 가짜 EXIF(제조사/기기/날짜) 주입 + SEO 파일명(`메인키워드_서브키워드_N.jpg`).
+이미지는 SEO 파일명(`메인키워드_서브키워드_N.jpg`)으로 저장한다. PNG → JPEG 변환만 수행한다.
