@@ -5,6 +5,7 @@ from tools import (
     NaverSearchTool,
     NaverShoppingInsightTool,
     NaverBlogCompetitionTool,
+    YouTubeTrendTool,
     TitleSEOCheckerTool,
     GeminiImageGeneratorTool,
     NaverSmartEditorTool,
@@ -24,7 +25,7 @@ class BlogAutomationCrew:
         return Agent(
             config=self.agents_config["seo_analyst"],
             llm=self._llm(),
-            tools=[NaverShoppingInsightTool(), NaverDataLabTool(), NaverSearchTool(), NaverBlogCompetitionTool()],
+            tools=[NaverShoppingInsightTool(), NaverDataLabTool(), NaverSearchTool(), YouTubeTrendTool(), NaverBlogCompetitionTool()],
             allow_delegation=False,
             cache=False,
             verbose=True,
