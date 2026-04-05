@@ -6,7 +6,7 @@ from tools.youtube_trend_tool import YouTubeTrendTool
 from tools.title_seo_checker_tool import TitleSEOCheckerTool
 from tools.gemini_image_tool import GeminiImageGeneratorTool
 from tools.naver_smart_editor_tool import NaverSmartEditorTool
-from tools.daum_trend_tool import DaumTrendTool
+from tools.blackkiwi_trend_tool import BlackKiwiTrendTool
 from tools.naver_news_trend_tool import NaverNewsTrendTool
 from tools.naver_related_keyword_tool import NaverRelatedKeywordTool
 
@@ -19,7 +19,7 @@ __all__ = [
     "TitleSEOCheckerTool",
     "GeminiImageGeneratorTool",
     "NaverSmartEditorTool",
-    "DaumTrendTool",
+    "BlackKiwiTrendTool",
     "NaverNewsTrendTool",
     "NaverRelatedKeywordTool",
 ]

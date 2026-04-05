@@ -9,8 +9,6 @@ from tools import (
     TitleSEOCheckerTool,
     GeminiImageGeneratorTool,
     NaverSmartEditorTool,
-    DaumTrendTool,
-    NaverNewsTrendTool,
     NaverRelatedKeywordTool,
 )
 

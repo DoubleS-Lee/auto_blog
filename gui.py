@@ -69,7 +69,7 @@ class BlogAutomationGUI:
         self._method_var = tk.IntVar(value=2)  # 기본: 쇼핑 트렌드
 
         ttk.Radiobutton(
-            step1, text="다음(Daum) 실시간 트렌드",
+            step1, text="블랙키위 실시간 트렌드",
             variable=self._method_var, value=1,
             command=self._on_method_change,
         ).grid(row=0, column=0, sticky="w", pady=2)
@@ -306,12 +306,12 @@ class BlogAutomationGUI:
         try:
             from main import parse_keyword_list
 
-            method_names = {1: "다음 실시간 트렌드", 2: "네이버 쇼핑 트렌드", 3: f"네이버 뉴스 ({category})"}
+            method_names = {1: "블랙키위 실시간 트렌드", 2: "네이버 쇼핑 트렌드", 3: f"네이버 뉴스 ({category})"}
             print(f"\n[→] 1단계: 키워드 발굴 시작 — {method_names[method]}\n")
 
             if method == 1:
-                from tools import DaumTrendTool
-                result = DaumTrendTool()._run(max_keywords=20)
+                from tools import BlackKiwiTrendTool
+                result = BlackKiwiTrendTool()._run(top_n=30)
 
             elif method == 2:
                 from tools import NaverShoppingInsightTool
