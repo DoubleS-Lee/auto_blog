@@ -170,6 +170,9 @@ class NaverShoppingInsightTool(BaseTool):
 
         # 2단계: 상위 카테고리별 인기 키워드
         lines = [f"[쇼핑인사이트 — 최근 {period_days}일 기준 상위 {top_categories}개 카테고리 인기 키워드]", ""]
+        all_kws: list = []
+        seen_kws: set = set()
+
         for rank, (cat_name, recent_ratio) in enumerate(top, 1):
             keywords = self._fetch_category_keywords(
                 client_id, client_secret, cat_name, keywords_per_category
@@ -178,9 +181,15 @@ class NaverShoppingInsightTool(BaseTool):
             lines.append(f"{rank}위 카테고리: {cat_name} (클릭비율 {recent_ratio})")
             lines.append(f"   → 인기 키워드: {kw_str}")
             lines.append("")
+            # GUI 파싱용 전체 키워드 수집 (중복 제거)
+            for kw in keywords:
+                if kw not in seen_kws:
+                    seen_kws.add(kw)
+                    all_kws.append(kw)
             time.sleep(0.3)
 
         lines.append("※ 위 키워드 = 지금 사람들이 네이버 쇼핑에서 실제로 검색하는 소재")
         lines.append("※ 각 키워드에서 '왜 그럴까?' 각도의 블로그 주제를 도출할 것")
+        lines.append(f"\nKEYWORD_LIST: {' | '.join(all_kws)}")
 
         return "\n".join(lines)

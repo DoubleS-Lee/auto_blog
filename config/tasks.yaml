@@ -16,37 +16,40 @@ keyword_research_task:
     1단계 키워드 중 검색량이 일정 수준 이상이며 하락세가 아닌 명사 20개를 선정한다.
     ※ DataLab 입력에 '이유/원리/왜' 절대 포함 금지.
 
-    [3단계] 글로벌 YouTube 흥행 검증 — YouTubeTrendTool
-    2단계에서 선정된 키워드 각각을 영어로 번역하여 YouTubeTrendTool로 검색한다.
-    예: '마그네슘' → keyword="magnesium", '러닝화' → keyword="running shoes"
+    [3단계] YouTube 흥행 검증 — YouTubeTrendTool
+    2단계에서 선정된 키워드를 한국어 그대로 YouTubeTrendTool로 검색한다.
+    예: '마그네슘' → keyword="마그네슘", '러닝화' → keyword="러닝화"
     조회수 높은 영상 제목의 스토리텔링 패턴(충격·반전·의외)을 파악한다.
 
     이후 아래 기준으로 자체 평가한다:
       ① 메인 키워드(명사)가 주제에 포함되는가?
       ② 뻔하지 않고 충격적/반전/의외의 정보인가?
-      ③ 글로벌 유튜브 트렌드를 기반으로 한 인사이트인가?
+      ③ 한국 시청자가 실제로 궁금해할 만한 인사이트인가?
     → 3가지 모두 충족하는 주제만 다음 단계로 진행한다.
+    → YouTube 결과가 빈약하거나 관련 영상이 없으면 ②③ 기준은 키워드 트렌드와 네이버 검색 의도로 대체 판단한다.
 
     글 주제(문장)와 타겟 키워드(명사)를 쌍으로 생성한다.
     - 예시:
-      - YouTube: "Stop taking Magnesium at night" (조회수 500만)
+      - YouTube: "마그네슘 언제 먹어야 할까? 밤에 먹으면 안 되는 이유" (조회수 80만)
       - 타겟 키워드(명사): '마그네슘 수면'
       - 글 주제(문장): "밤에 마그네슘을 먹으면 수면을 망치는 진짜 이유"
-      - 평가: 명사 포함(O) / 반전 정보(O) / 글로벌 인사이트(O) → 합격
+      - 평가: 명사 포함(O) / 반전 정보(O) / 국내 인사이트(O) → 합격
 
-      - YouTube: "Why expensive running shoes destroy your knees" (조회수 800만)
+      - YouTube: "비싼 러닝화가 무릎에 더 나쁜 이유 (충격 실험)" (조회수 45만)
       - 타겟 키워드(명사): '무릎 통증'
       - 글 주제(문장): "비싼 러닝화가 오히려 무릎을 망가뜨리는 원리"
-      - 평가: 명사 포함(O) / 반전 정보(O) / 글로벌 인사이트(O) → 합격
+      - 평가: 명사 포함(O) / 반전 정보(O) / 국내 인사이트(O) → 합격
 
-    [4단계] 네이버 경쟁도 분석 — NaverBlogCompetitionTool
-    반드시 '글 주제(문장)'가 아닌 **'타겟 키워드(명사)'**를 입력한다.
+    [4단계] KEI 기반 SEO 기회 분석 — NaverBlogCompetitionTool
+    반드시 '글 주제(문장)'가 아닌 **'타겟 키워드(명사)'** 목록을 입력한다.
     문장으로 검색하면 경쟁도가 낮게 나와 무의미하다.
-    별 4~5개(경쟁 낮음)인 키워드만 '생존'시키고, 별 1~2개(포화 상태)인 키워드는 가차 없이 버린다.
-    만약 생존한 주제가 최종 목표인 10개에 미달한다면, 다시 2단계나 3단계로 돌아가 새로운 키워드를 발굴하여 10개가 채워질 때까지 이 과정을 반복(Loop)한다.
+    툴이 내부적으로 DataLab 검색량 + 블로그 경쟁수를 동시에 조회하고
+    KEI(검색량 ÷ 경쟁수 × 1000)를 계산하여 반환한다.
+    KEI ★★★★☆(10 이상) 키워드만 '생존'시키고, ★★☆☆☆(1 미만)은 가차 없이 버린다.
+    만약 생존한 주제가 최종 목표인 10개에 미달한다면, 다시 2단계나 3단계로 돌아가 새로운 키워드를 발굴하여 10개가 채워질 때까지 반복한다.
 
     [5단계] 최종 전략 리포트 작성
-    기회 점수 높은 10개 세트를 확정하고 아래 형식으로 출력한다.
+    KEI 높은 10개 세트를 확정하고 아래 형식으로 출력한다.
 
     [출력 형식 - 반드시 준수]
     각 주제마다:
@@ -54,7 +57,7 @@ keyword_research_task:
       메인 키워드(Target): (명사형 키워드)
       서브 키워드: (연관 명사 3개)
       YouTube 근거: (참고한 영상 제목 + 조회수)
-      경쟁도: (별점)
+      KEI: (점수 및 별점)
 
     RECOMMENDED_TOPICS: 주제1 | 주제2 | ... | 주제10
 
@@ -69,9 +72,47 @@ keyword_research_task:
     트렌드 발굴 결과, 메인/서브 키워드, 경쟁 글 패턴, 추천 제목 방향, RECOMMENDED_TOPICS 목록이 포함된 키워드 전략 보고서
   agent: seo_analyst
 
+topic_generation_task:
+  description: >
+    '{keyword}' 키워드를 중심으로 블로그 주제 5개를 생성하라.
+    블로그 컨셉: '세상 모든 것에는 이유가 있다'.
+
+    [처리 순서]
+
+    [1단계] YouTubeTrendTool로 흥행 검증
+    - keyword를 한국어 그대로 YouTubeTrendTool 호출 (번역 금지)
+    - 조회수 높은 영상의 반전·충격·의외 스토리텔링 패턴 파악
+    - 높은 조회수 영상의 제목 패턴에서 '왜(why)' 관점 발굴
+
+    [2단계] NaverRelatedKeywordTool로 파생 키워드 발굴
+    - keyword를 그대로 입력
+    - DataLab 실측 데이터 기반으로 실제 검색량이 있는 파생 키워드만 반환
+    - RELATED_KEYWORDS 목록을 다음 단계 입력으로 사용
+
+    [3단계] NaverBlogCompetitionTool로 KEI 분석
+    - [메인 keyword] + [2단계 RELATED_KEYWORDS]를 keywords 리스트로 입력
+    - 툴이 검색량·경쟁수·KEI를 자동 계산하여 반환
+    - KEI ★★★★☆(10 이상) 키워드를 주제에 우선 활용
+    - KEI ★★☆☆☆(1 미만) 키워드는 제외
+
+    [3단계] 주제 5개 생성
+    - 각 주제는 반전·충격·의외의 관점이 담긴 흥미로운 문장 형태
+    - '이유', '원리', '왜', '비밀', '사실' 등 자연스럽게 포함
+    - 경쟁도 낮은 파생 키워드를 활용한 주제 우선
+    - YouTube 글로벌 인사이트를 한국 독자 맥락으로 변환
+
+    [출력 형식 - 반드시 준수]
+    TOPICS: 주제1 | 주제2 | 주제3 | 주제4 | 주제5
+  expected_output: >
+    TOPICS: 로 시작하는 한 줄 (파이프로 구분된 5개 주제 문장)
+  agent: seo_analyst
+
 content_writing_task:
   description: >
     '{topic}' 주제의 Why 블로그 글을 작성하라.
+
+    [SEO 분석 참고 자료 - 아래 키워드 정보를 글쓰기에 활용할 것]
+    {seo_analysis}
 
     [필수 규칙]
     - 절대로 AI가 쓴 것처럼 느껴지면 안 됨
@@ -113,8 +154,6 @@ content_writing_task:
     본문...
     형태로 구성된 블로그 글 (> 소제목과 **강조** 외 마크다운 기호 없음)
   agent: content_writer
-  context:
-    - keyword_research_task
 
 image_generation_task:
   description: >
@@ -123,8 +162,11 @@ image_generation_task:
     [처리 순서 - 각 이미지마다 반복]
     GeminiImageGeneratorTool로 Imagen 4 이미지 생성:
     - prompt: 글 주제와 어울리는 분위기, 영어로 작성
-    - main_keyword: keyword_research_task의 메인 키워드 (한국어)
-    - sub_keyword: keyword_research_task의 서브 키워드 (한국어)
+    - main_keyword: 아래 SEO 분석의 '메인 키워드(Target)' (한국어 명사)
+    - sub_keyword: 아래 SEO 분석의 '서브 키워드' 중 첫 번째 (한국어 명사)
+
+    [SEO 분석 참고]
+    {seo_analysis}
     - image_index: 이미지 번호
     - 텍스트/문자/한자/숫자가 절대 포함되지 않도록 명시
 
@@ -137,7 +179,6 @@ image_generation_task:
   agent: image_creator
   context:
     - content_writing_task
-    - keyword_research_task
 
 seo_optimization_task:
   description: >
@@ -151,7 +192,11 @@ seo_optimization_task:
          ③ **강조 텍스트** 형식 (굵게 처리용, 보존)
     2. 메인 키워드를 제목, 첫 문단, 중간, 마지막 문단에 자연스럽게 배치
     3. 블로그 제목 초안 작성 (20~35자, 메인 키워드 앞부분 배치, 클릭 유도형)
-    4. 글을 수정할 때, keyword_research_task에서 전달해준 **'메인 키워드(Target)'*인 명사 단어를 본문에 자연스럽게 녹여내라. '대표 주제(Topic)'인 문장을 그대로 반복하지 않도록 주의하라.
+    4. 아래 SEO 분석에서 '메인 키워드(Target)' 명사를 본문에 자연스럽게 녹여내라.
+       '대표 주제(Topic)' 문장을 그대로 반복하지 않도록 주의하라.
+
+    [SEO 분석 참고]
+    {seo_analysis}
     5. TitleSEOCheckerTool로 제목 품질 검사
        - title: 작성한 제목, main_keyword: 메인 키워드
        - 점수 75 미만이면 피드백을 반영해 제목을 수정하고 재검사한다
@@ -166,7 +211,6 @@ seo_optimization_task:
   agent: seo_optimizer
   context:
     - content_writing_task
-    - keyword_research_task
 
 blog_publishing_task:
   description: >

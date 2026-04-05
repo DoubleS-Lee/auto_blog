@@ -9,6 +9,9 @@ from tools import (
     TitleSEOCheckerTool,
     GeminiImageGeneratorTool,
     NaverSmartEditorTool,
+    DaumTrendTool,
+    NaverNewsTrendTool,
+    NaverRelatedKeywordTool,
 )
 
 
@@ -25,7 +28,7 @@ class BlogAutomationCrew:
         return Agent(
             config=self.agents_config["seo_analyst"],
             llm=self._llm(),
-            tools=[NaverShoppingInsightTool(), NaverDataLabTool(), NaverSearchTool(), YouTubeTrendTool(), NaverBlogCompetitionTool()],
+            tools=[NaverShoppingInsightTool(), NaverDataLabTool(), NaverSearchTool(), YouTubeTrendTool(), NaverRelatedKeywordTool(), NaverBlogCompetitionTool()],
             allow_delegation=False,
             cache=False,
             verbose=True,
@@ -80,6 +83,10 @@ class BlogAutomationCrew:
         return Task(config=self.tasks_config["keyword_research_task"])
 
     @task
+    def topic_generation_task(self) -> Task:
+        return Task(config=self.tasks_config["topic_generation_task"])
+
+    @task
     def content_writing_task(self) -> Task:
         return Task(config=self.tasks_config["content_writing_task"])
 
@@ -97,10 +104,20 @@ class BlogAutomationCrew:
 
     @crew
     def seo_crew(self) -> Crew:
-        """1단계: SEO 분석 + 추천 주제 생성만 실행"""
+        """1단계: SEO 분석 + 추천 주제 생성만 실행 (레거시)"""
         return Crew(
             agents=[self.seo_analyst()],
             tasks=[self.keyword_research_task()],
+            process=Process.sequential,
+            verbose=True,
+        )
+
+    @crew
+    def topic_crew(self) -> Crew:
+        """키워드 → 블로그 주제 5개 생성 크루"""
+        return Crew(
+            agents=[self.seo_analyst()],
+            tasks=[self.topic_generation_task()],
             process=Process.sequential,
             verbose=True,
         )

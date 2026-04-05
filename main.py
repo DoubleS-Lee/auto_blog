@@ -144,6 +144,33 @@ def _clean_topic(text: str) -> str:
     return t.strip()
 
 
+def parse_keyword_list(result: str) -> list:
+    """
+    툴 결과에서 'KEYWORD_LIST: kw1 | kw2 | ...' 줄을 파싱해 키워드 목록 반환.
+    """
+    for line in result.splitlines():
+        stripped = line.strip()
+        if stripped.upper().startswith("KEYWORD_LIST:"):
+            raw = stripped.split(":", 1)[1].strip()
+            if "|" in raw:
+                return [kw.strip() for kw in raw.split("|") if kw.strip()]
+            # 파이프 없이 쉼표 구분인 경우
+            return [kw.strip() for kw in raw.split(",") if kw.strip()]
+    return []
+
+
+def parse_topics(result: str) -> list:
+    """
+    topic_generation_task 결과에서 'TOPICS: t1 | t2 | ...' 줄을 파싱.
+    """
+    for line in result.splitlines():
+        stripped = line.strip()
+        if stripped.upper().startswith("TOPICS:"):
+            raw = stripped.split(":", 1)[1].strip()
+            return [t.strip() for t in raw.split("|") if t.strip()]
+    return []
+
+
 def load_tone_guide() -> str:
     """tone_guide.yaml 로드 (100~150 토큰, 샘플 전문 대신 사용)"""
     try:
@@ -268,7 +295,8 @@ if __name__ == "__main__":
     print("[→] 2단계: 글 작성 → 이미지 생성 → SEO 최적화 시작...\n")
 
     # ── 2단계: 글 작성 → 이미지 생성 → SEO 최적화 ────────
-    content_result_obj = crew_instance.content_crew().kickoff(inputs={
+    content_crew = crew_instance.content_crew()
+    content_result_obj = content_crew.kickoff(inputs={
         "topic": topic,
         "tone_guide": tone_guide,
         "emphasis": emphasis,
@@ -276,17 +304,25 @@ if __name__ == "__main__":
         "blocks": "[]",
     })
 
-    # 에이전트 결과에서 데이터 추출
-    tasks_output = crew_instance.content_crew().tasks
-
+    # 에이전트 결과에서 데이터 추출 (같은 crew 인스턴스에서 접근)
     image_result = ""
     seo_result = ""
-    for task_out in tasks_output:
-        if hasattr(task_out, "output") and task_out.output:
-            raw = str(task_out.output.raw) if hasattr(task_out.output, "raw") else str(task_out.output)
-            if "output/images" in raw:
+    tasks_output = getattr(content_result_obj, "tasks_output", None) or []
+    if not tasks_output:
+        # fallback: crew 인스턴스의 task 객체에서 직접 접근
+        for task in content_crew.tasks:
+            if hasattr(task, "output") and task.output:
+                raw = str(task.output.raw) if hasattr(task.output, "raw") else str(task.output)
+                if "output/images" in raw and not image_result:
+                    image_result = raw
+                if "TITLE:" in raw and "TAGS:" in raw and not seo_result:
+                    seo_result = raw
+    else:
+        for task_out in tasks_output:
+            raw = str(task_out.raw) if hasattr(task_out, "raw") else str(task_out)
+            if "output/images" in raw and not image_result:
                 image_result = raw
-            if "TITLE:" in raw and "TAGS:" in raw:
+            if "TITLE:" in raw and "TAGS:" in raw and not seo_result:
                 seo_result = raw
 
     # 블록 파싱
@@ -297,6 +333,36 @@ if __name__ == "__main__":
         print("[!] SEO 최적화 결과를 파싱하지 못했습니다. 크루 출력을 확인하세요.")
         print(content_result_obj)
         exit(1)
+
+    # ── SEO 최적화 후 마커 보존 검증 ────────────────────────
+    import re as _re
+    _warnings = []
+    _image_markers = _re.findall(r'\[IMAGE_\d+\]', content)
+    if not _image_markers:
+        _warnings.append("[!] 경고: [IMAGE_N] 마커가 모두 사라졌습니다 — seo_optimizer가 삭제했을 가능성")
+    else:
+        print(f"[✓] IMAGE 마커 보존 확인: {', '.join(_image_markers)}")
+
+    _quote_blocks = _re.findall(r'^> .+', content, _re.MULTILINE)
+    if not _quote_blocks:
+        _warnings.append("[!] 경고: '> 소제목' 블록이 모두 사라졌습니다 — seo_optimizer가 삭제했을 가능성")
+    else:
+        print(f"[✓] 소제목 블록 보존 확인: {len(_quote_blocks)}개")
+
+    _bold_texts = _re.findall(r'\*\*.+?\*\*', content)
+    if not _bold_texts:
+        _warnings.append("[△] 참고: **강조** 텍스트가 없습니다 — content_writer가 작성하지 않았거나 삭제되었을 수 있음")
+    else:
+        print(f"[✓] 강조 텍스트 보존 확인: {len(_bold_texts)}개")
+
+    for w in _warnings:
+        print(w)
+
+    if any(w.startswith("[!]") for w in _warnings):
+        answer2 = input("마커 손실이 감지되었습니다. 그래도 계속 발행하시겠습니까? [y/n]: ").strip().lower()
+        if answer2 != "y":
+            print("발행을 중단합니다.")
+            exit(1)
 
     blocks = parse_content_blocks(content, image_paths)
     print(f"\n[✓] 블록 파싱 완료: 총 {len(blocks)}개 블록")

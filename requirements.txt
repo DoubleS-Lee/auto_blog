@@ -8,3 +8,4 @@ sajupy
 python-dotenv
 requests
 pyyaml
+beautifulsoup4

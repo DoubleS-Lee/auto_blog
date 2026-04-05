@@ -1,6 +1,11 @@
 """
 Why 블로그 자동화 GUI
 실행: python gui.py
+
+흐름:
+  1단계: 키워드 발굴 방법 선택 → 키워드 목록 표시
+  2단계: 키워드 선택 → 블로그 주제 5개 생성
+  3단계: 주제 선택 → 글 작성 + 발행
 """
 import sys
 import threading
@@ -10,9 +15,15 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# 뉴스 카테고리 목록 (NaverNewsTrendTool과 동기화)
+NEWS_CATEGORIES = ["IT", "경제", "건강", "교육", "여행", "생활", "육아", "시사"]
+
+EMPHASIS_PLACEHOLDER = "예: 초등학생도 이해할 수 있게, 수식 없이 비유로만 설명"
+
 
 class TextRedirector:
     """print() 출력을 GUI 로그창으로 리다이렉트."""
+
     def __init__(self, widget: scrolledtext.ScrolledText):
         self.widget = widget
 
@@ -38,8 +49,9 @@ class BlogAutomationGUI:
         self.root.title("Why 블로그 자동화 — 세상 모든 것에는 이유가 있다")
         self.root.resizable(True, True)
 
-        self._seo_raw = ""          # seo_crew 결과 저장
-        self._recommended: list = []
+        self._keywords: list = []   # 발굴된 키워드 목록
+        self._topics: list = []     # 생성된 주제 목록
+        self._seo_raw: str = ""     # 마지막 SEO 분석 원문 (content_crew용)
 
         self._build_ui()
 
@@ -50,141 +62,197 @@ class BlogAutomationGUI:
     def _build_ui(self):
         pad = {"padx": 12, "pady": 6}
 
-        # ── 1단계: SEO 분석 버튼 ──────────────────────
-        step1_frame = ttk.LabelFrame(self.root, text="1단계: SEO 분석", padding=8)
-        step1_frame.pack(fill="x", **pad)
+        # ── 1단계: 키워드 발굴 방법 선택 ──────────────
+        step1 = ttk.LabelFrame(self.root, text="1단계: 키워드 발굴 방법 선택", padding=8)
+        step1.pack(fill="x", **pad)
 
-        self.seo_btn = ttk.Button(step1_frame, text="SEO 분석 시작", command=self._start_seo)
-        self.seo_btn.pack(side="left", fill="x", expand=True)
+        self._method_var = tk.IntVar(value=2)  # 기본: 쇼핑 트렌드
 
-        self.login_btn = ttk.Button(
-            step1_frame, text="네이버 재로그인", command=self._start_login, width=18
+        ttk.Radiobutton(
+            step1, text="다음(Daum) 실시간 트렌드",
+            variable=self._method_var, value=1,
+            command=self._on_method_change,
+        ).grid(row=0, column=0, sticky="w", pady=2)
+
+        ttk.Radiobutton(
+            step1, text="네이버 쇼핑 트렌드",
+            variable=self._method_var, value=2,
+            command=self._on_method_change,
+        ).grid(row=1, column=0, sticky="w", pady=2)
+
+        method3_frame = ttk.Frame(step1)
+        method3_frame.grid(row=2, column=0, sticky="w", pady=2)
+
+        ttk.Radiobutton(
+            method3_frame, text="네이버 뉴스 분석  카테고리:",
+            variable=self._method_var, value=3,
+            command=self._on_method_change,
+        ).pack(side="left")
+
+        self._category_var = tk.StringVar(value="IT")
+        self._category_combo = ttk.Combobox(
+            method3_frame,
+            textvariable=self._category_var,
+            values=NEWS_CATEGORIES,
+            width=8,
+            state="disabled",
         )
-        self.login_btn.pack(side="right", padx=(8, 0))
+        self._category_combo.pack(side="left", padx=(4, 0))
 
-        # ── 2단계: 주제 선택 + 설정 ───────────────────
-        step2_frame = ttk.LabelFrame(self.root, text="2단계: 주제 선택 및 글 작성", padding=8)
-        step2_frame.pack(fill="x", **pad)
+        btn_row = ttk.Frame(step1)
+        btn_row.grid(row=3, column=0, columnspan=2, sticky="ew", pady=(8, 0))
 
-        # 추천 주제 Listbox
-        ttk.Label(step2_frame, text="추천 주제 (SEO 분석 후 자동 채워짐):").pack(anchor="w")
-        list_frame = ttk.Frame(step2_frame)
-        list_frame.pack(fill="x", pady=(2, 6))
+        self._discover_btn = ttk.Button(
+            btn_row, text="키워드 발굴 시작", command=self._start_discover
+        )
+        self._discover_btn.pack(side="left", fill="x", expand=True)
 
-        scrollbar = ttk.Scrollbar(list_frame, orient=tk.VERTICAL)
-        self.topic_listbox = tk.Listbox(
-            list_frame, height=5, font=("맑은 고딕", 10),
-            yscrollcommand=scrollbar.set, selectmode=tk.SINGLE,
+        self._login_btn = ttk.Button(
+            btn_row, text="네이버 재로그인", command=self._start_login, width=18
+        )
+        self._login_btn.pack(side="right", padx=(8, 0))
+
+        # ── 2단계: 키워드 선택 → 주제 생성 ──────────
+        step2 = ttk.LabelFrame(self.root, text="2단계: 키워드 선택 → 주제 5개 생성", padding=8)
+        step2.pack(fill="x", **pad)
+
+        ttk.Label(step2, text="발굴된 키워드 (클릭해서 선택):").pack(anchor="w")
+        kw_frame = ttk.Frame(step2)
+        kw_frame.pack(fill="x", pady=(2, 4))
+
+        kw_scroll = ttk.Scrollbar(kw_frame, orient=tk.VERTICAL)
+        self._kw_listbox = tk.Listbox(
+            kw_frame, height=5, font=("맑은 고딕", 10),
+            yscrollcommand=kw_scroll.set, selectmode=tk.SINGLE,
             activestyle="dotbox",
         )
-        scrollbar.config(command=self.topic_listbox.yview)
-        scrollbar.pack(side="right", fill="y")
-        self.topic_listbox.pack(side="left", fill="x", expand=True)
-        self.topic_listbox.bind("<<ListboxSelect>>", self._on_listbox_select)
+        kw_scroll.config(command=self._kw_listbox.yview)
+        kw_scroll.pack(side="right", fill="y")
+        self._kw_listbox.pack(side="left", fill="x", expand=True)
+        self._kw_listbox.bind("<<ListboxSelect>>", self._on_kw_select)
 
-        # 직접 입력
-        ttk.Label(step2_frame, text="직접 입력 (Listbox 선택을 덮어씀):").pack(anchor="w", pady=(4, 0))
-        self.topic_var = tk.StringVar()
-        ttk.Entry(step2_frame, textvariable=self.topic_var, font=("맑은 고딕", 11)).pack(
+        ttk.Label(step2, text="또는 직접 입력:").pack(anchor="w", pady=(4, 0))
+        self._kw_var = tk.StringVar()
+        ttk.Entry(step2, textvariable=self._kw_var, font=("맑은 고딕", 11)).pack(
             fill="x", pady=(2, 6)
         )
 
-        # 강조 사항
-        EMPHASIS_PLACEHOLDER = "예: 초등학생도 이해할 수 있게, 수식 없이 비유로만 설명"
-        ttk.Label(step2_frame, text="작성 강조 사항 (content_writer에게 전달, 선택):").pack(anchor="w")
-        self.emphasis_var = tk.StringVar(value=EMPHASIS_PLACEHOLDER)
-        self.emphasis_entry = ttk.Entry(
-            step2_frame, textvariable=self.emphasis_var,
+        self._gen_topic_btn = ttk.Button(
+            step2, text="이 키워드로 주제 5개 생성",
+            command=self._start_gen_topics, state="disabled",
+        )
+        self._gen_topic_btn.pack(fill="x")
+
+        # ── 3단계: 주제 선택 → 글 작성 ───────────────
+        step3 = ttk.LabelFrame(self.root, text="3단계: 주제 선택 → 글 작성 + 발행", padding=8)
+        step3.pack(fill="x", **pad)
+
+        ttk.Label(step3, text="생성된 주제 (클릭해서 선택):").pack(anchor="w")
+        topic_frame = ttk.Frame(step3)
+        topic_frame.pack(fill="x", pady=(2, 4))
+
+        topic_scroll = ttk.Scrollbar(topic_frame, orient=tk.VERTICAL)
+        self._topic_listbox = tk.Listbox(
+            topic_frame, height=5, font=("맑은 고딕", 10),
+            yscrollcommand=topic_scroll.set, selectmode=tk.SINGLE,
+            activestyle="dotbox",
+        )
+        topic_scroll.config(command=self._topic_listbox.yview)
+        topic_scroll.pack(side="right", fill="y")
+        self._topic_listbox.pack(side="left", fill="x", expand=True)
+        self._topic_listbox.bind("<<ListboxSelect>>", self._on_topic_select)
+
+        ttk.Label(step3, text="또는 직접 입력:").pack(anchor="w", pady=(4, 0))
+        self._topic_var = tk.StringVar()
+        ttk.Entry(step3, textvariable=self._topic_var, font=("맑은 고딕", 11)).pack(
+            fill="x", pady=(2, 4)
+        )
+
+        ttk.Label(step3, text="작성 강조 사항 (선택, content_writer에게 전달):").pack(anchor="w")
+        self._emphasis_var = tk.StringVar(value=EMPHASIS_PLACEHOLDER)
+        self._emphasis_entry = ttk.Entry(
+            step3, textvariable=self._emphasis_var,
             font=("맑은 고딕", 10), foreground="grey",
         )
-        self.emphasis_entry.pack(fill="x", pady=(2, 6))
-        self.emphasis_entry.bind("<FocusIn>",  lambda e: self._clear_placeholder(EMPHASIS_PLACEHOLDER))
-        self.emphasis_entry.bind("<FocusOut>", lambda e: self._restore_placeholder(EMPHASIS_PLACEHOLDER))
+        self._emphasis_entry.pack(fill="x", pady=(2, 6))
+        self._emphasis_entry.bind("<FocusIn>",  lambda e: self._clear_ph())
+        self._emphasis_entry.bind("<FocusOut>", lambda e: self._restore_ph())
 
-        # 발행 옵션 + 실행 버튼
-        bottom_frame = ttk.Frame(step2_frame)
-        bottom_frame.pack(fill="x", pady=(4, 0))
+        write_row = ttk.Frame(step3)
+        write_row.pack(fill="x")
 
-        self.publish_var = tk.BooleanVar(value=False)
+        self._publish_var = tk.BooleanVar(value=False)
         ttk.Checkbutton(
-            bottom_frame,
+            write_row,
             text="완료 후 최종 발행 (해제 시 태그 입력까지만)",
-            variable=self.publish_var,
+            variable=self._publish_var,
         ).pack(side="left")
 
-        self.write_btn = ttk.Button(
-            bottom_frame, text="글 작성 + 발행",
+        self._write_btn = ttk.Button(
+            write_row, text="글 작성 + 발행",
             command=self._start_content, state="disabled",
         )
-        self.write_btn.pack(side="right")
+        self._write_btn.pack(side="right")
 
         # ── 로그 창 ───────────────────────────────────
         log_frame = ttk.LabelFrame(self.root, text="실행 로그", padding=8)
         log_frame.pack(fill="both", expand=True, **pad)
 
-        self.log_box = scrolledtext.ScrolledText(
-            log_frame,
-            state="disabled",
-            font=("Consolas", 9),
-            bg="#1e1e1e",
-            fg="#d4d4d4",
-            insertbackground="white",
-            wrap="word",
+        self._log_box = scrolledtext.ScrolledText(
+            log_frame, state="disabled", font=("Consolas", 9),
+            bg="#1e1e1e", fg="#d4d4d4", insertbackground="white", wrap="word",
         )
-        self.log_box.pack(fill="both", expand=True)
+        self._log_box.pack(fill="both", expand=True)
 
-        # stdout/stderr 리다이렉트
-        redirector = TextRedirector(self.log_box)
+        redirector = TextRedirector(self._log_box)
         sys.stdout = redirector
         sys.stderr = redirector
 
         self.root.update_idletasks()
-        self.root.minsize(660, 620)
+        self.root.minsize(680, 780)
 
     # ─────────────────────────────────────────────
-    # Placeholder 헬퍼
+    # 헬퍼
     # ─────────────────────────────────────────────
 
-    def _clear_placeholder(self, placeholder: str):
-        if self.emphasis_var.get() == placeholder:
-            self.emphasis_var.set("")
-            self.emphasis_entry.configure(foreground="black")
+    def _on_method_change(self):
+        state = "readonly" if self._method_var.get() == 3 else "disabled"
+        self._category_combo.configure(state=state)
 
-    def _restore_placeholder(self, placeholder: str):
-        if not self.emphasis_var.get().strip():
-            self.emphasis_var.set(placeholder)
-            self.emphasis_entry.configure(foreground="grey")
-
-    def _on_listbox_select(self, _event):
-        """Listbox 클릭 시 직접 입력 필드를 선택 항목으로 채움."""
-        sel = self.topic_listbox.curselection()
+    def _on_kw_select(self, _event):
+        sel = self._kw_listbox.curselection()
         if sel:
-            self.topic_var.set(self._recommended[sel[0]])
+            self._kw_var.set(self._keywords[sel[0]])
 
-    # ─────────────────────────────────────────────
-    # 버튼 상태
-    # ─────────────────────────────────────────────
+    def _on_topic_select(self, _event):
+        sel = self._topic_listbox.curselection()
+        if sel:
+            self._topic_var.set(self._topics[sel[0]])
 
-    def _set_seo_running(self, running: bool):
-        self.root.after(0, lambda: self.seo_btn.configure(
-            state="disabled" if running else "normal",
-            text="분석 중..." if running else "SEO 분석 시작",
-        ))
+    def _clear_ph(self):
+        if self._emphasis_var.get() == EMPHASIS_PLACEHOLDER:
+            self._emphasis_var.set("")
+            self._emphasis_entry.configure(foreground="black")
 
-    def _set_content_running(self, running: bool):
-        self.root.after(0, lambda: self.write_btn.configure(
+    def _restore_ph(self):
+        if not self._emphasis_var.get().strip():
+            self._emphasis_var.set(EMPHASIS_PLACEHOLDER)
+            self._emphasis_entry.configure(foreground="grey")
+
+    def _set_btn(self, btn: ttk.Button, running: bool, idle_text: str):
+        self.root.after(0, lambda: btn.configure(
             state="disabled",
-            text="작성 중..." if running else "글 작성 + 발행",
+            text="실행 중..." if running else idle_text,
         ))
         if not running:
-            self.root.after(0, lambda: self.write_btn.configure(state="normal"))
+            self.root.after(0, lambda: btn.configure(state="normal"))
 
     # ─────────────────────────────────────────────
     # 네이버 재로그인
     # ─────────────────────────────────────────────
 
     def _start_login(self):
-        self.login_btn.configure(state="disabled", text="로그인 중...")
+        self._login_btn.configure(state="disabled", text="로그인 중...")
         threading.Thread(target=self._run_login, daemon=True).start()
 
     def _run_login(self):
@@ -204,7 +272,7 @@ class BlogAutomationGUI:
                 )
                 page = context.new_page()
                 page.goto("https://nid.naver.com/nidlogin.login")
-                print("[!] 브라우저에서 로그인 후 잠시 기다려 주세요. 자동으로 감지합니다.")
+                print("[!] 브라우저에서 로그인 후 잠시 기다려 주세요.")
                 try:
                     page.wait_for_url("https://www.naver.com/**", timeout=300_000)
                 except Exception:
@@ -212,82 +280,147 @@ class BlogAutomationGUI:
                 page.wait_for_timeout(1500)
                 context.close()
 
-            print("[✓] 로그인 완료 — 프로파일 저장됨 (다음 실행부터 자동 로그인)")
-
+            print("[✓] 로그인 완료 — 프로파일 저장됨")
         except Exception as e:
             import traceback
             print(f"\n[오류] 로그인 실패: {e}")
             print(traceback.format_exc())
         finally:
-            self.root.after(0, lambda: self.login_btn.configure(
+            self.root.after(0, lambda: self._login_btn.configure(
                 state="normal", text="네이버 재로그인"
             ))
 
     # ─────────────────────────────────────────────
-    # 1단계: SEO 분석
+    # 1단계: 키워드 발굴
     # ─────────────────────────────────────────────
 
-    def _start_seo(self):
-        self._set_seo_running(True)
-        threading.Thread(target=self._run_seo, daemon=True).start()
+    def _start_discover(self):
+        self._discover_btn.configure(state="disabled", text="발굴 중...")
+        method = self._method_var.get()
+        category = self._category_var.get() if method == 3 else None
+        threading.Thread(
+            target=self._run_discover, args=(method, category), daemon=True
+        ).start()
 
-    def _run_seo(self):
+    def _run_discover(self, method: int, category: str | None):
         try:
-            from main import parse_recommended_topics, load_tone_guide
-            from crew import BlogAutomationCrew
+            from main import parse_keyword_list
 
-            print("[→] 1단계: SEO 키워드 분석 중...\n")
-            crew_instance = BlogAutomationCrew()
-            result_obj = crew_instance.seo_crew().kickoff(inputs={"topic": "세상 모든 이유"})
-            self._seo_raw = str(result_obj.raw) if hasattr(result_obj, "raw") else str(result_obj)
+            method_names = {1: "다음 실시간 트렌드", 2: "네이버 쇼핑 트렌드", 3: f"네이버 뉴스 ({category})"}
+            print(f"\n[→] 1단계: 키워드 발굴 시작 — {method_names[method]}\n")
 
-            self._recommended = parse_recommended_topics(self._seo_raw)
+            if method == 1:
+                from tools import DaumTrendTool
+                result = DaumTrendTool()._run(max_keywords=20)
 
-            if self._recommended:
-                self.root.after(0, self._populate_topics)
-                print(f"\n[✓] 추천 주제 {len(self._recommended)}개 확인 — 주제를 선택 후 '글 작성 + 발행'을 눌러 주세요.")
+            elif method == 2:
+                from tools import NaverShoppingInsightTool
+                result = NaverShoppingInsightTool()._run(
+                    period_days=30, top_categories=5, keywords_per_category=8
+                )
+
+            else:  # method == 3
+                from tools import NaverNewsTrendTool
+                result = NaverNewsTrendTool()._run(
+                    category=category, count=80, top_keywords=20
+                )
+
+            print(result)
+            print()
+
+            keywords = parse_keyword_list(result)
+
+            if keywords:
+                self._keywords = keywords
+                self.root.after(0, self._populate_keywords)
+                print(f"[✓] 키워드 {len(keywords)}개 발굴 완료 — 키워드를 선택하세요.")
             else:
-                print("\n[!] 추천 주제를 파싱하지 못했습니다. 직접 입력 후 진행해 주세요.")
-                print("─── SEO 에이전트 원문 출력 (마지막 500자) ───")
-                print(self._seo_raw[-500:] if len(self._seo_raw) > 500 else self._seo_raw)
-                print("────────────────────────────────────────────")
-                self.root.after(0, lambda: self.write_btn.configure(state="normal"))
+                print("[!] 키워드를 파싱하지 못했습니다. 직접 입력 후 진행하세요.")
+                self.root.after(0, lambda: self._gen_topic_btn.configure(state="normal"))
 
         except Exception as e:
             import traceback
-            print(f"\n[오류] SEO 분석 실패: {e}")
+            print(f"\n[오류] 키워드 발굴 실패: {e}")
             print(traceback.format_exc())
         finally:
-            self._set_seo_running(False)
+            self.root.after(0, lambda: self._discover_btn.configure(
+                state="normal", text="키워드 발굴 시작"
+            ))
 
-    def _populate_topics(self):
-        """추천 주제를 Listbox에 채우고 2단계 버튼 활성화."""
-        self.topic_listbox.delete(0, tk.END)
-        for t in self._recommended:
-            self.topic_listbox.insert(tk.END, t)
-        self.write_btn.configure(state="normal")
+    def _populate_keywords(self):
+        self._kw_listbox.delete(0, tk.END)
+        for kw in self._keywords:
+            self._kw_listbox.insert(tk.END, kw)
+        self._gen_topic_btn.configure(state="normal")
 
     # ─────────────────────────────────────────────
-    # 2단계: 글 작성 + 발행
+    # 2단계: 주제 5개 생성
+    # ─────────────────────────────────────────────
+
+    def _start_gen_topics(self):
+        keyword = self._kw_var.get().strip()
+        if not keyword:
+            print("[!] 키워드를 선택하거나 직접 입력해 주세요.")
+            return
+        self._gen_topic_btn.configure(state="disabled", text="주제 생성 중...")
+        threading.Thread(target=self._run_gen_topics, args=(keyword,), daemon=True).start()
+
+    def _run_gen_topics(self, keyword: str):
+        try:
+            from main import parse_topics
+            from crew import BlogAutomationCrew
+
+            print(f"\n[→] 2단계: '{keyword}' 키워드로 주제 5개 생성 중...\n")
+            crew_instance = BlogAutomationCrew()
+            result_obj = crew_instance.topic_crew().kickoff(inputs={"keyword": keyword})
+            raw = str(result_obj.raw) if hasattr(result_obj, "raw") else str(result_obj)
+            self._seo_raw = raw  # content_crew context용
+
+            topics = parse_topics(raw)
+
+            if topics:
+                self._topics = topics
+                self.root.after(0, self._populate_topics)
+                print(f"\n[✓] 주제 {len(topics)}개 생성 완료 — 주제를 선택하세요.")
+            else:
+                print("\n[!] 주제를 파싱하지 못했습니다. 직접 입력 후 진행하세요.")
+                print("─── 에이전트 원문 출력 (마지막 500자) ───")
+                print(raw[-500:] if len(raw) > 500 else raw)
+                print("──────────────────────────────────────")
+                self.root.after(0, lambda: self._write_btn.configure(state="normal"))
+
+        except Exception as e:
+            import traceback
+            print(f"\n[오류] 주제 생성 실패: {e}")
+            print(traceback.format_exc())
+        finally:
+            self.root.after(0, lambda: self._gen_topic_btn.configure(
+                state="normal", text="이 키워드로 주제 5개 생성"
+            ))
+
+    def _populate_topics(self):
+        self._topic_listbox.delete(0, tk.END)
+        for t in self._topics:
+            self._topic_listbox.insert(tk.END, t)
+        self._write_btn.configure(state="normal")
+
+    # ─────────────────────────────────────────────
+    # 3단계: 글 작성 + 발행
     # ─────────────────────────────────────────────
 
     def _start_content(self):
-        EMPHASIS_PLACEHOLDER = "예: 초등학생도 이해할 수 있게, 수식 없이 비유로만 설명"
-
-        topic = self.topic_var.get().strip()
+        topic = self._topic_var.get().strip()
         if not topic:
             print("[!] 주제를 선택하거나 직접 입력해 주세요.")
             return
 
-        emphasis = self.emphasis_var.get().strip()
+        emphasis = self._emphasis_var.get().strip()
         if emphasis == EMPHASIS_PLACEHOLDER:
             emphasis = ""
 
-        self._set_content_running(True)
+        self._write_btn.configure(state="disabled", text="작성 중...")
         threading.Thread(
-            target=self._run_content,
-            args=(topic, emphasis),
-            daemon=True,
+            target=self._run_content, args=(topic, emphasis), daemon=True
         ).start()
 
     def _run_content(self, topic: str, emphasis: str):
@@ -301,7 +434,7 @@ class BlogAutomationGUI:
             from crew import BlogAutomationCrew
             from tools import NaverSmartEditorTool
 
-            dry_run = not self.publish_var.get()
+            dry_run = not self._publish_var.get()
             tone_guide = load_tone_guide()
 
             print(f"[✓] 톤앤매너 가이드 로드 완료 ({len(tone_guide)}자)")
@@ -309,10 +442,10 @@ class BlogAutomationGUI:
             if emphasis:
                 print(f"[✓] 강조 사항: {emphasis}")
             print(f"[✓] 최종 발행: {'예' if not dry_run else '아니오 (태그 입력까지만)'}")
-            print("[→] 2단계: 글 작성 → 이미지 생성 → SEO 최적화 시작...\n")
+            print("[→] 3단계: 글 작성 → 이미지 생성 → SEO 최적화 시작...\n")
 
             crew_instance = BlogAutomationCrew()
-            result_obj = crew_instance.content_crew().kickoff(inputs={
+            crew_instance.content_crew().kickoff(inputs={
                 "topic": topic,
                 "tone_guide": tone_guide,
                 "emphasis": emphasis,
@@ -320,7 +453,6 @@ class BlogAutomationGUI:
                 "blocks": "[]",
             })
 
-            # 결과 파싱
             image_result = ""
             seo_result = ""
             for task_out in crew_instance.content_crew().tasks:
@@ -336,7 +468,6 @@ class BlogAutomationGUI:
 
             if not content:
                 print("[!] SEO 최적화 결과를 파싱하지 못했습니다.")
-                print(str(result_obj))
                 return
 
             blocks = parse_content_blocks(content, image_paths)
@@ -346,10 +477,7 @@ class BlogAutomationGUI:
 
             publisher = NaverSmartEditorTool()
             publish_result = publisher._run(
-                title=title,
-                blocks=blocks,
-                tags=tags,
-                dry_run=dry_run,
+                title=title, blocks=blocks, tags=tags, dry_run=dry_run,
             )
             print(f"\n[✓] {publish_result}")
 
@@ -358,7 +486,9 @@ class BlogAutomationGUI:
             print(f"\n[오류] {e}")
             print(traceback.format_exc())
         finally:
-            self._set_content_running(False)
+            self.root.after(0, lambda: self._write_btn.configure(
+                state="normal", text="글 작성 + 발행"
+            ))
 
 
 if __name__ == "__main__":

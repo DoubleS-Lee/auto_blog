@@ -8,20 +8,20 @@ from pydantic import BaseModel, Field
 class YouTubeTrendInput(BaseModel):
     keyword: str = Field(
         ...,
-        description="글로벌 흥행 영상을 검색할 명사형 키워드. 예: 'magnesium', 'protein', 'running shoes'"
+        description="인기 영상을 검색할 한국어 키워드. 예: '마그네슘', '러닝화', '레티놀'"
     )
     max_results: int = Field(default=5, description="반환할 영상 수 (기본 5개)")
-    region_code: str = Field(default="US", description="검색 지역 코드. 글로벌 흥행은 'US' 권장")
-    min_views: int = Field(default=500_000, description="최소 조회수 필터 (기본 50만)")
+    region_code: str = Field(default="KR", description="검색 지역 코드 (기본 KR — 한국)")
+    min_views: int = Field(default=100_000, description="최소 조회수 필터 (기본 10만)")
 
 
 class YouTubeTrendTool(BaseTool):
     name: str = "youtube_trend"
     description: str = (
-        "YouTube Data API로 키워드의 글로벌 인기 영상을 검색한다. "
+        "YouTube Data API로 한국어 키워드의 인기 영상을 검색한다. "
         "조회수가 높은 영상 제목에서 '충격적·반전·의외' 스토리텔링 패턴을 파악한다. "
-        "글로벌에서 이미 검증된 흥미 포인트를 한국 블로그 주제로 변환하는 소재로 사용한다. "
-        "키워드는 영어로 입력해야 글로벌 결과를 얻을 수 있다."
+        "한국 시청자 기준으로 검증된 흥미 포인트를 블로그 주제 소재로 활용한다. "
+        "키워드는 한국어로 입력한다."
     )
     args_schema: type = YouTubeTrendInput
 
@@ -35,7 +35,7 @@ class YouTubeTrendTool(BaseTool):
                 "type": "video",
                 "order": "viewCount",
                 "regionCode": region_code,
-                "relevanceLanguage": "en",
+                "relevanceLanguage": "ko",
                 "maxResults": max_fetch,
                 "part": "id,snippet",
             },
@@ -75,8 +75,8 @@ class YouTubeTrendTool(BaseTool):
         self,
         keyword: str,
         max_results: int = 5,
-        region_code: str = "US",
-        min_views: int = 500_000,
+        region_code: str = "KR",
+        min_views: int = 100_000,
     ) -> str:
         api_key = os.environ.get("YOUTUBE_API_KEY")
         if not api_key:
@@ -109,7 +109,7 @@ class YouTubeTrendTool(BaseTool):
 
         # 4. 포맷 출력
         lines = [
-            f"[YouTube 글로벌 흥행 분석 — 키워드: '{keyword}' / 지역: {region_code}]",
+            f"[YouTube 인기 영상 분석 — 키워드: '{keyword}' / 지역: {region_code}]",
             "",
         ]
         for i, v in enumerate(top, 1):
@@ -124,7 +124,7 @@ class YouTubeTrendTool(BaseTool):
             "※ 평가 기준:",
             "   ① 메인 키워드(명사)가 주제에 포함되는가?",
             "   ② 뻔하지 않고 충격적/반전/의외의 정보인가?",
-            "   ③ 글로벌 트렌드를 기반으로 한 인사이트인가?",
+            "   ③ 한국 시청자 기준으로 흥미를 끄는 인사이트인가?",
             "   → 3가지 모두 충족 시 '합격' 주제로 채택",
         ]
 
